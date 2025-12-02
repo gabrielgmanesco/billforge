@@ -1,0 +1,143 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id               String         @id @default(cuid())
+  email            String         @unique
+  name             String
+  passwordHash     String
+  stripeCustomerId String?        @unique
+
+  subscriptions    Subscription[]
+  refreshTokens    RefreshToken[]
+  invoices         Invoice[]
+  auditLogs        AuditLog[]
+
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+}
+
+model RefreshToken {
+  id           String   @id @default(cuid())
+  userId       String
+  token        String   @unique
+  isRevoked    Boolean  @default(false)
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  revokedAt    DateTime?
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+}
+
+model SubscriptionPlan {
+  id              String           @id @default(cuid())
+  code            String           @unique // "free", "pro", "premium"
+  name            String
+  description     String?
+  stripeProductId String?          @unique
+  stripePriceId   String?          @unique
+  priceCents      Int
+  currency        String
+  interval        BillingInterval
+  isActive        Boolean          @default(true)
+
+  subscriptions   Subscription[]
+
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  userId               String
+  planId               String
+  stripeSubscriptionId String?            @unique
+  status               SubscriptionStatus
+
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean            @default(false)
+  canceledAt           DateTime?
+  trialEnd             DateTime?
+
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan                 SubscriptionPlan   @relation(fields: [planId], references: [id])
+
+  invoices             Invoice[]
+
+  @@index([userId, status])
+  @@index([stripeSubscriptionId])
+}
+
+model Invoice {
+  id                    String         @id @default(cuid())
+  subscriptionId        String?
+  userId                String
+  stripeInvoiceId       String         @unique
+  stripePaymentIntentId String?        @unique
+  status                InvoiceStatus
+  amountDueCents        Int
+  amountPaidCents       Int
+  currency              String
+  hostedInvoiceUrl      String?
+  invoicePdf            String?
+
+  createdAt             DateTime       @default(now())
+  invoiceCreatedAt      DateTime
+
+  subscription          Subscription?  @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  user                  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([subscriptionId])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  resource  String?
+  ipAddress String?
+  userAgent String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+enum BillingInterval {
+  MONTH
+  YEAR
+}
+
+enum SubscriptionStatus {
+  INCOMPLETE
+  INCOMPLETE_EXPIRED
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  UNPAID
+}
+
+enum InvoiceStatus {
+  DRAFT
+  OPEN
+  PAID
+  UNCOLLECTIBLE
+  VOID
+}

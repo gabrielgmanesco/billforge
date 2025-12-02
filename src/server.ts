@@ -1,5 +1,6 @@
 import { buildApp } from './app.js';
 import { env } from './core/env/env.js';
+import { prisma, pool } from './prisma/client.js';
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
@@ -25,6 +26,8 @@ async function start() {
     const shutdown = async (signal: string) => {
       app.log.info(`${signal} received, shutting down gracefully`);
       await app.close();
+      await prisma.$disconnect();
+      await pool.end();
       process.exit(0);
     };
 
