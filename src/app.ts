@@ -3,6 +3,7 @@ import cookie from '@fastify/cookie';
 
 import { env } from './core/env/env.js';
 import { registerRoutes } from './core/http/routes.js';
+import { errorHandler } from './core/http/error-handler.js';
 
 export function buildApp() {
   const app = Fastify({
@@ -22,6 +23,8 @@ export function buildApp() {
   });
 
   app.register(registerRoutes);
+
+  app.setErrorHandler(errorHandler);
 
   return app;
 }
