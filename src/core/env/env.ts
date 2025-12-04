@@ -15,7 +15,9 @@ const envSchema = z.object({
 
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_PUBLIC_KEY: z.string().optional(),
-  STRIPE_WEBHOOK_SECRET: z.string().optional()
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_PRICE_ID_PRO: z.string().optional(),
+  STRIPE_PRICE_ID_PREMIUM: z.string().optional(),
 });
 
 const _env = envSchema.safeParse(process.env);

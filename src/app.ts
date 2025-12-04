@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
+import fastifyRawBody from 'fastify-raw-body';
 
 import { env } from './core/env/env.js';
 import { registerRoutes } from './core/http/routes.js';
@@ -20,6 +21,13 @@ export function buildApp() {
       sameSite: 'lax',
       secure: env.NODE_ENV === 'production'
     }
+  });
+
+  app.register(fastifyRawBody, {
+    field: 'rawBody',
+    global: false,
+    encoding: 'buffer',
+    runFirst: true,
   });
 
   app.register(registerRoutes);

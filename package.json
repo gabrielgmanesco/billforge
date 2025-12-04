@@ -28,6 +28,7 @@
     "argon2": "^0.44.0",
     "dotenv": "^17.2.3",
     "fastify": "^5.6.2",
+    "fastify-raw-body": "^5.0.0",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.16.3",
     "pino": "^10.1.0",
