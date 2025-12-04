@@ -5,6 +5,7 @@ import { registerSubscriptionsRoutes } from '../../modules/subscriptions/subscri
 import { registerUsersRoutes } from '../../modules/users/users.routes.js';
 import { registerBillingRoutes } from '../../modules/payments/billing.routes.js';
 import { registerStripeWebhookRoutes } from '../../modules/webhooks/stripe-webhook.routes.js';
+import { registerReportsRoutes } from '../../modules/reports/reports.routes.js';
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get('/health', async () => {
@@ -22,6 +23,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.register(registerUsersRoutes);
 
   app.register(registerBillingRoutes);
+
+  app.register(registerReportsRoutes);
 
   app.register(registerStripeWebhookRoutes);
 }

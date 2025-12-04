@@ -2,6 +2,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { env } from '../../core/env/env.js';
 import { loginSchema, registerSchema } from './auth.schemas.js';
 import { AuthService } from './auth.service.js';
+import { createAuditLog } from '../../core/utils/audit-log.js';
 
 const authService = new AuthService();
 
@@ -25,6 +26,17 @@ export async function registerController(request: FastifyRequest, reply: Fastify
   const body = registerSchema.parse(request.body);
 
   const result = await authService.register(body);
+
+  await createAuditLog({
+    userId: result.user.id,
+    action: 'auth.register',
+    resource: 'user',
+    ipAddress: request.ip,
+    userAgent: request.headers['user-agent'] ?? null,
+    metadata: {
+      email: result.user.email,
+    },
+  });
 
   setRefreshTokenCookie(reply, result.refreshToken, result.refreshTokenExpiresAt);
 

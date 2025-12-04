@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 import { stripe } from '../../config/stripe.js';
 import { env } from '../../core/env/env.js';
 import { prisma } from '../../prisma/client.js';
+import { createAuditLog } from '../../core/utils/audit-log.js';
 
 function ensureStripeWebhookConfigured() {
   if (!stripe || !env.STRIPE_WEBHOOK_SECRET) {
@@ -86,14 +87,14 @@ async function upsertSubscriptionFromStripeSubscription(
   }
 }
 
-async function upsertInvoiceFromStripeInvoice(stripeInvoice: Stripe.Invoice) {
+async function upsertInvoiceFromStripeInvoice(stripeInvoice: Stripe.Invoice): Promise<{ userId: string } | null> {
   const customerId = typeof stripeInvoice.customer === 'string'
     ? stripeInvoice.customer
     : stripeInvoice.customer?.id;
 
   if (!customerId) {
     console.warn('[StripeWebhook] Invoice without customer');
-    return;
+    return null;
   }
 
   const user = await prisma.user.findFirst({
@@ -102,7 +103,7 @@ async function upsertInvoiceFromStripeInvoice(stripeInvoice: Stripe.Invoice) {
 
   if (!user) {
     console.warn('[StripeWebhook] User not found for customer', customerId);
-    return;
+    return null;
   }
 
   let subscriptionRecord = null;
@@ -150,6 +151,8 @@ async function upsertInvoiceFromStripeInvoice(stripeInvoice: Stripe.Invoice) {
       data,
     });
   }
+
+  return { userId: user.id };
 }
 
 export async function stripeWebhookController(request: FastifyRequest, reply: FastifyReply) {
@@ -204,6 +207,18 @@ export async function stripeWebhookController(request: FastifyRequest, reply: Fa
         const stripeSub = await stripe!.subscriptions.retrieve(subscriptionId);
 
         await upsertSubscriptionFromStripeSubscription(stripeSub, userId);
+
+        await createAuditLog({
+          userId,
+          action: 'stripe.checkout.session.completed',
+          resource: 'subscription',
+          metadata: {
+            sessionId: session.id,
+            subscriptionId: stripeSub.id,
+            planCode: session.metadata?.planCode ?? null,
+          },
+        });
+
         break;
       }
 
@@ -229,6 +244,17 @@ export async function stripeWebhookController(request: FastifyRequest, reply: Fa
         }
 
         await upsertSubscriptionFromStripeSubscription(stripeSub, user.id);
+
+        await createAuditLog({
+          userId: user.id,
+          action: `stripe.subscription.${event.type.split('.').pop()}`,
+          resource: 'subscription',
+          metadata: {
+            stripeSubscriptionId: stripeSub.id,
+            status: stripeSub.status,
+          },
+        });
+
         break;
       }
 
@@ -237,7 +263,20 @@ export async function stripeWebhookController(request: FastifyRequest, reply: Fa
       case 'invoice.marked_uncollectible':
       case 'invoice.voided': {
         const stripeInvoice = event.data.object as Stripe.Invoice;
-        await upsertInvoiceFromStripeInvoice(stripeInvoice);
+        const result = await upsertInvoiceFromStripeInvoice(stripeInvoice);
+
+        if (result) {
+          await createAuditLog({
+            userId: result.userId,
+            action: `stripe.invoice.${event.type.split('.').pop()}`,
+            resource: 'invoice',
+            metadata: {
+              stripeInvoiceId: stripeInvoice.id,
+              status: stripeInvoice.status,
+            },
+          });
+        }
+
         break;
       }
 
