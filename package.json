@@ -4,10 +4,14 @@
   "description": "BillForge - Subscription and billing platform backend",
   "main": "dist/server.js",
   "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
     "dev": "tsx src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
+    "postdeploy": "npm run prisma:generate && npm run prisma:deploy && npm run prisma:seed",
     "lint": "eslint src --max-warnings=0",
     "lint:fix": "eslint src --fix",
     "format": "prettier --write .",
