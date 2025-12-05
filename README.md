@@ -194,7 +194,7 @@ src/
 
 ```
 
-## 🚀 Deployment
+## Deployment
 
 ### Railway
 
