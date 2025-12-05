@@ -194,6 +194,73 @@ src/
 
 ```
 
+## 🚀 Deployment
+
+### Railway
+
+This project is configured for deployment on [Railway](https://railway.app).
+
+**Live Demo:** [https://billforge-production.up.railway.app](https://billforge-production.up.railway.app)
+
+#### Setup Steps:
+
+1. **Create Railway Account**
+   - Go to [railway.app](https://railway.app)
+   - Login with GitHub
+   - Authorize Railway to access your repositories
+
+2. **Create New Project**
+   - Click "New Project"
+   - Select "Deploy from GitHub repo"
+   - Choose your `billforge` repository
+
+3. **Add PostgreSQL Database**
+   - Click "New" → "Database" → "PostgreSQL"
+   - Railway automatically creates and injects `DATABASE_URL`
+
+4. **Configure Environment Variables**
+   - Go to your service → "Variables"
+   - Add the following:
+     ```
+     NODE_ENV=production
+     JWT_SECRET=<generate 32+ character string>
+     REFRESH_TOKEN_SECRET=<generate 32+ character string>
+     COOKIE_SECRET=<generate 32+ character string>
+     STRIPE_SECRET_KEY=<your Stripe secret key>
+     STRIPE_PUBLIC_KEY=<your Stripe public key>
+     STRIPE_PRICE_ID_PRO=<your Stripe Pro price ID>
+     STRIPE_PRICE_ID_PREMIUM=<your Stripe Premium price ID>
+     STRIPE_WEBHOOK_SECRET=<configure after webhook setup>
+     ```
+
+5. **Deploy**
+   - Railway automatically detects Node.js and runs build
+   - After first deploy, run migrations:
+     ```bash
+     railway run npm run prisma:deploy
+     railway run npm run prisma:seed
+     ```
+   - Or use the `postdeploy` script (runs automatically)
+
+6. **Configure Stripe Webhook**
+   - Get your Railway URL: `https://your-app.up.railway.app`
+   - Go to Stripe Dashboard → Webhooks → Add endpoint
+   - URL: `https://your-app.up.railway.app/webhooks/stripe`
+   - Select events:
+     - `checkout.session.completed`
+     - `customer.subscription.*`
+     - `invoice.*`
+   - Copy the signing secret and add to Railway as `STRIPE_WEBHOOK_SECRET`
+
+#### Railway CLI (Optional):
+
+```bash
+npm i -g @railway/cli
+railway login
+railway link
+railway up
+```
+
 ## License
 
 MIT
