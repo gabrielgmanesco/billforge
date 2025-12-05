@@ -13,8 +13,6 @@ RUN npx prisma generate --schema=src/prisma/schema.prisma
 
 RUN npm run build
 
-RUN npm prune --production
-
 ENV NODE_ENV=production
 
 CMD ["node", "dist/server.js"]
