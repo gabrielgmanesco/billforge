@@ -4,11 +4,16 @@ WORKDIR /usr/src/app
 
 COPY package.json package-lock.json* ./
 
-RUN npm ci --omit=dev
+RUN npm ci
 
 COPY . .
 
+ENV DATABASE_URL="postgresql://dummy:dummy@dummy:5432/dummy"
+RUN npx prisma generate --schema=src/prisma/schema.prisma
+
 RUN npm run build
+
+RUN npm prune --production
 
 ENV NODE_ENV=production
 
