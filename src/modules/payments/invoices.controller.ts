@@ -17,6 +17,7 @@ export async function listUserInvoicesController(
     orderBy: {
       invoiceCreatedAt: 'desc',
     },
+    take: 50,
     select: {
       id: true,
       stripeInvoiceId: true,

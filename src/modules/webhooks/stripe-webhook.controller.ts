@@ -182,6 +182,18 @@ export async function stripeWebhookController(request: FastifyRequest, reply: Fa
     return reply.status(400).send({ message: 'Invalid signature' });
   }
 
+  const existingEvent = await prisma.auditLog.findFirst({
+    where: {
+      action: { contains: event.type },
+      metadata: { path: ['stripeEventId'], equals: event.id },
+    },
+  });
+
+  if (existingEvent) {
+    request.log.debug({ eventId: event.id }, 'Webhook event already processed');
+    return reply.status(200).send({ received: true, duplicate: true });
+  }
+
   try {
     switch (event.type) {
       case 'checkout.session.completed': {
@@ -209,6 +221,7 @@ export async function stripeWebhookController(request: FastifyRequest, reply: Fa
           action: 'stripe.checkout.session.completed',
           resource: 'subscription',
           metadata: {
+            stripeEventId: event.id,
             sessionId: session.id,
             subscriptionId: stripeSub.id,
             planCode: session.metadata?.planCode ?? null,
@@ -246,6 +259,7 @@ export async function stripeWebhookController(request: FastifyRequest, reply: Fa
           action: `stripe.subscription.${event.type.split('.').pop()}`,
           resource: 'subscription',
           metadata: {
+            stripeEventId: event.id,
             stripeSubscriptionId: stripeSub.id,
             status: stripeSub.status,
           },
@@ -267,6 +281,7 @@ export async function stripeWebhookController(request: FastifyRequest, reply: Fa
             action: `stripe.invoice.${event.type.split('.').pop()}`,
             resource: 'invoice',
             metadata: {
+              stripeEventId: event.id,
               stripeInvoiceId: stripeInvoice.id,
               status: stripeInvoice.status,
             },

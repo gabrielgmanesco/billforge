@@ -54,6 +54,21 @@ export class BillingService {
       throw new AppError('User not found', 404, 'USER_NOT_FOUND');
     }
 
+    const existingSubscription = await prisma.subscription.findFirst({
+      where: {
+        userId,
+        status: { in: ['ACTIVE', 'TRIALING', 'PAST_DUE'] },
+      },
+    });
+
+    if (existingSubscription) {
+      throw new AppError(
+        'User already has an active subscription',
+        400,
+        'SUBSCRIPTION_ALREADY_EXISTS'
+      );
+    }
+
     const plan = await subscriptionsRepository.findPlanByCode(planCode);
 
     if (!plan || !plan.isActive) {

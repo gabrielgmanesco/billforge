@@ -14,6 +14,9 @@ export class SubscriptionsRepository {
       include: {
         plan: true,
       },
+      orderBy: {
+        createdAt: 'desc',
+      },
     });
   }
 
