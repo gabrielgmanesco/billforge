@@ -37,10 +37,12 @@ export function roleGuard(requiredRole: AppRole) {
         status: {
           in: ['TRIALING', 'ACTIVE', 'PAST_DUE'] as SubscriptionStatus[],
         },
-        cancelAtPeriodEnd: false,
       },
       include: {
         plan: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
       },
     });
 

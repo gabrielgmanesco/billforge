@@ -24,7 +24,7 @@ export async function getCurrentSubscriptionController(
 }
 
 const manualSubscriptionSchema = z.object({
-  planCode: z.enum(['free', 'pro', 'premium']),
+  planCode: z.enum(['pro', 'premium']),
 });
 
 export async function createManualSubscriptionController(

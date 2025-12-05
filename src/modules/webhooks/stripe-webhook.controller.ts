@@ -11,8 +11,13 @@ function ensureStripeWebhookConfigured() {
   }
 }
 
-function mapSubscriptionStatus(status: Stripe.Subscription.Status) {
-  return status.toUpperCase();
+function mapSubscriptionStatus(status: Stripe.Subscription.Status): string {
+  const mapped = status.toUpperCase();
+  const validStatuses = ['INCOMPLETE', 'INCOMPLETE_EXPIRED', 'TRIALING', 'ACTIVE', 'PAST_DUE', 'CANCELED', 'UNPAID'];
+  if (!validStatuses.includes(mapped)) {
+    return 'CANCELED';
+  }
+  return mapped;
 }
 
 function mapInvoiceStatus(status: Stripe.Invoice.Status | null) {
@@ -38,8 +43,16 @@ async function upsertSubscriptionFromStripeSubscription(
   stripeSub: Stripe.Subscription,
   userId: string,
 ) {
+  if (!stripeSub.items?.data || stripeSub.items.data.length === 0) {
+    return null;
+  }
+
   const firstItem = stripeSub.items.data[0];
   const priceId = firstItem?.price?.id;
+
+  if (!priceId) {
+    return null;
+  }
 
   const planCode = resolvePlanCodeFromPriceId(priceId);
 
@@ -56,7 +69,7 @@ async function upsertSubscriptionFromStripeSubscription(
   }
 
   const sub = stripeSub as any;
-  
+
   const data = {
     userId,
     planId: plan.id,
@@ -69,20 +82,72 @@ async function upsertSubscriptionFromStripeSubscription(
     trialEnd: sub.trial_end ? new Date(sub.trial_end * 1000) : null,
   };
 
-  const existing = await prisma.subscription.findUnique({
-    where: { stripeSubscriptionId: stripeSub.id },
-  });
+  return await prisma.$transaction(async (tx) => {
+    const existing = await tx.subscription.findUnique({
+      where: { stripeSubscriptionId: stripeSub.id },
+    });
 
-  if (existing) {
-    await prisma.subscription.update({
-      where: { id: existing.id },
-      data,
-    });
-  } else {
-    await prisma.subscription.create({
-      data,
-    });
-  }
+    const isBecomingActive = ['TRIALING', 'ACTIVE', 'PAST_DUE'].includes(data.status);
+
+    if (existing) {
+      const updated = await tx.subscription.update({
+        where: { id: existing.id },
+        data,
+      });
+
+      if (isBecomingActive) {
+        const activeSubscriptions = await tx.subscription.findMany({
+          where: {
+            userId,
+            status: {
+              in: ['TRIALING', 'ACTIVE', 'PAST_DUE'],
+            },
+            id: { not: existing.id },
+          },
+        });
+
+        if (activeSubscriptions.length > 0) {
+          await tx.subscription.updateMany({
+            where: {
+              id: { in: activeSubscriptions.map(s => s.id) },
+            },
+            data: {
+              status: 'CANCELED',
+              canceledAt: new Date(),
+            },
+          });
+        }
+      }
+
+      return updated;
+    } else {
+      const activeSubscriptions = await tx.subscription.findMany({
+        where: {
+          userId,
+          status: {
+            in: ['TRIALING', 'ACTIVE', 'PAST_DUE'],
+          },
+          stripeSubscriptionId: { not: stripeSub.id },
+        },
+      });
+
+      if (activeSubscriptions.length > 0) {
+        await tx.subscription.updateMany({
+          where: {
+            id: { in: activeSubscriptions.map(s => s.id) },
+          },
+          data: {
+            status: 'CANCELED',
+            canceledAt: new Date(),
+          },
+        });
+      }
+
+      return await tx.subscription.create({
+        data,
+      });
+    }
+  });
 }
 
 async function upsertInvoiceFromStripeInvoice(stripeInvoice: Stripe.Invoice): Promise<{ userId: string } | null> {
@@ -133,22 +198,24 @@ async function upsertInvoiceFromStripeInvoice(stripeInvoice: Stripe.Invoice): Pr
     invoiceCreatedAt: new Date(stripeInvoice.created * 1000),
   };
 
-  const existing = await prisma.invoice.findUnique({
-    where: { stripeInvoiceId: stripeInvoice.id },
+  return await prisma.$transaction(async (tx) => {
+    const existing = await tx.invoice.findUnique({
+      where: { stripeInvoiceId: stripeInvoice.id },
+    });
+
+    if (existing) {
+      await tx.invoice.update({
+        where: { id: existing.id },
+        data,
+      });
+    } else {
+      await tx.invoice.create({
+        data,
+      });
+    }
+
+    return { userId: user.id };
   });
-
-  if (existing) {
-    await prisma.invoice.update({
-      where: { id: existing.id },
-      data,
-    });
-  } else {
-    await prisma.invoice.create({
-      data,
-    });
-  }
-
-  return { userId: user.id };
 }
 
 export async function stripeWebhookController(request: FastifyRequest, reply: FastifyReply) {
@@ -184,7 +251,6 @@ export async function stripeWebhookController(request: FastifyRequest, reply: Fa
 
   const existingEvent = await prisma.auditLog.findFirst({
     where: {
-      action: { contains: event.type },
       metadata: { path: ['stripeEventId'], equals: event.id },
     },
   });
@@ -212,21 +278,29 @@ export async function stripeWebhookController(request: FastifyRequest, reply: Fa
             ? session.subscription
             : session.subscription.id;
 
-        const stripeSub = await stripe!.subscriptions.retrieve(subscriptionId);
+        let stripeSub: Stripe.Subscription;
+        try {
+          stripeSub = await stripe!.subscriptions.retrieve(subscriptionId);
+        } catch (error) {
+          request.log.error({ error, subscriptionId }, 'Failed to retrieve Stripe subscription');
+          break;
+        }
 
-        await upsertSubscriptionFromStripeSubscription(stripeSub, userId);
+        const subscription = await upsertSubscriptionFromStripeSubscription(stripeSub, userId);
 
-        await createAuditLog({
-          userId,
-          action: 'stripe.checkout.session.completed',
-          resource: 'subscription',
-          metadata: {
-            stripeEventId: event.id,
-            sessionId: session.id,
-            subscriptionId: stripeSub.id,
-            planCode: session.metadata?.planCode ?? null,
-          },
-        });
+        if (subscription) {
+          await createAuditLog({
+            userId,
+            action: 'stripe.checkout.session.completed',
+            resource: 'subscription',
+            metadata: {
+              stripeEventId: event.id,
+              sessionId: session.id,
+              subscriptionId: stripeSub.id,
+              planCode: session.metadata?.planCode ?? null,
+            },
+          });
+        }
 
         break;
       }
@@ -252,11 +326,13 @@ export async function stripeWebhookController(request: FastifyRequest, reply: Fa
           break;
         }
 
-        await upsertSubscriptionFromStripeSubscription(stripeSub, user.id);
+        const subscription = await upsertSubscriptionFromStripeSubscription(stripeSub, user.id);
 
+        if (subscription) {
+        const actionType = event.type.split('.').pop() || event.type;
         await createAuditLog({
           userId: user.id,
-          action: `stripe.subscription.${event.type.split('.').pop()}`,
+          action: `stripe.subscription.${actionType}`,
           resource: 'subscription',
           metadata: {
             stripeEventId: event.id,
@@ -264,6 +340,7 @@ export async function stripeWebhookController(request: FastifyRequest, reply: Fa
             status: stripeSub.status,
           },
         });
+        }
 
         break;
       }
@@ -276,9 +353,10 @@ export async function stripeWebhookController(request: FastifyRequest, reply: Fa
         const result = await upsertInvoiceFromStripeInvoice(stripeInvoice);
 
         if (result) {
+          const actionType = event.type.split('.').pop() || event.type;
           await createAuditLog({
             userId: result.userId,
-            action: `stripe.invoice.${event.type.split('.').pop()}`,
+            action: `stripe.invoice.${actionType}`,
             resource: 'invoice',
             metadata: {
               stripeEventId: event.id,

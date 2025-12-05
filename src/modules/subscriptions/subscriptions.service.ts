@@ -33,6 +33,10 @@ export class SubscriptionsService {
   }
 
   async createManualSubscription(userId: string, planCode: string) {
+    if (planCode === 'free') {
+      throw new AppError('Cannot create free subscription manually', 400, 'INVALID_PLAN_CODE');
+    }
+
     const plan = await subscriptionsRepository.findPlanByCode(planCode);
 
     if (!plan || !plan.isActive) {
@@ -45,9 +49,44 @@ export class SubscriptionsService {
       throw new AppError('User already has an active subscription', 400, 'SUBSCRIPTION_EXISTS');
     }
 
-    const newSubscription = await subscriptionsRepository.createManualSubscription({
-      userId,
-      planId: plan.id,
+    const { prisma } = await import('../../prisma/client.js');
+
+    const newSubscription = await prisma.$transaction(async (tx) => {
+      const activeSubscriptions = await tx.subscription.findMany({
+        where: {
+          userId,
+          status: {
+            in: ['TRIALING', 'ACTIVE', 'PAST_DUE'],
+          },
+        },
+      });
+
+      if (activeSubscriptions.length > 0) {
+        await tx.subscription.updateMany({
+          where: {
+            id: { in: activeSubscriptions.map(s => s.id) },
+          },
+          data: {
+            status: 'CANCELED',
+            canceledAt: new Date(),
+          },
+        });
+      }
+
+      const now = new Date();
+      const end = new Date();
+      end.setMonth(end.getMonth() + 1);
+
+      return await tx.subscription.create({
+        data: {
+          userId,
+          planId: plan.id,
+          status: 'ACTIVE',
+          currentPeriodStart: now,
+          currentPeriodEnd: end,
+          cancelAtPeriodEnd: false,
+        },
+      });
     });
 
     return {

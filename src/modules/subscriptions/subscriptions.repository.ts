@@ -9,7 +9,6 @@ export class SubscriptionsRepository {
         status: {
           in: ['TRIALING', 'ACTIVE', 'PAST_DUE'] as SubscriptionStatus[],
         },
-        cancelAtPeriodEnd: false,
       },
       include: {
         plan: true,

@@ -24,7 +24,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
             }
         }
     }, loginController);
-    
+
     app.post('/refresh', refreshController);
     app.delete('/logout', logoutController);
 }

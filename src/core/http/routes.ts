@@ -13,7 +13,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get('/health', async (request, reply) => {
     try {
       await prisma.$queryRaw`SELECT 1`;
-      
+
       return reply.status(200).send({
         status: 'ok',
         timestamp: new Date().toISOString(),

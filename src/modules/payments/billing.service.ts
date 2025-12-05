@@ -59,6 +59,9 @@ export class BillingService {
         userId,
         status: { in: ['ACTIVE', 'TRIALING', 'PAST_DUE'] },
       },
+      orderBy: {
+        createdAt: 'desc',
+      },
     });
 
     if (existingSubscription) {
@@ -80,17 +83,21 @@ export class BillingService {
     let stripeCustomerId = user.stripeCustomerId;
 
     if (!stripeCustomerId) {
-      const customer = await stripe!.customers.create({
-        email: user.email,
-        name: user.name,
-      });
+      try {
+        const customer = await stripe!.customers.create({
+          email: user.email,
+          name: user.name,
+        });
 
-      stripeCustomerId = customer.id;
+        stripeCustomerId = customer.id;
 
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { stripeCustomerId },
-      });
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { stripeCustomerId },
+        });
+      } catch (error) {
+        throw new AppError('Failed to create Stripe customer', 500, 'STRIPE_CUSTOMER_CREATION_FAILED');
+      }
     }
 
     const session = await stripe!.checkout.sessions.create({
@@ -110,6 +117,10 @@ export class BillingService {
         planCode: plan.code,
       },
     });
+
+    if (!session.url) {
+      throw new AppError('Failed to create checkout session URL', 500, 'CHECKOUT_SESSION_URL_MISSING');
+    }
 
     return {
       id: session.id,
@@ -133,23 +144,31 @@ export class BillingService {
     let stripeCustomerId = user.stripeCustomerId;
 
     if (!stripeCustomerId) {
-      const customer = await stripe!.customers.create({
-        email: user.email,
-        name: user.name,
-      });
+      try {
+        const customer = await stripe!.customers.create({
+          email: user.email,
+          name: user.name,
+        });
 
-      stripeCustomerId = customer.id;
+        stripeCustomerId = customer.id;
 
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { stripeCustomerId },
-      });
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { stripeCustomerId },
+        });
+      } catch (error) {
+        throw new AppError('Failed to create Stripe customer', 500, 'STRIPE_CUSTOMER_CREATION_FAILED');
+      }
     }
 
     const portalSession = await stripe!.billingPortal.sessions.create({
       customer: stripeCustomerId,
       return_url: returnUrl,
     });
+
+    if (!portalSession.url) {
+      throw new AppError('Failed to create billing portal session URL', 500, 'BILLING_PORTAL_URL_MISSING');
+    }
 
     return {
       url: portalSession.url,

@@ -63,12 +63,16 @@ export class AuthService {
     let stripeCustomerId: string | null = null;
 
     if (stripe) {
-      const customer = await stripe.customers.create({
-        email: input.email,
-        name: input.name,
-      });
+      try {
+        const customer = await stripe.customers.create({
+          email: input.email,
+          name: input.name,
+        });
 
-      stripeCustomerId = customer.id;
+        stripeCustomerId = customer.id;
+      } catch (error) {
+        throw new AppError('Failed to create Stripe customer', 500, 'STRIPE_CUSTOMER_CREATION_FAILED');
+      }
     }
 
     const user = await this.authRepository.createUser({

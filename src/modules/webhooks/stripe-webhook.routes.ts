@@ -10,7 +10,7 @@ export async function registerStripeWebhookRoutes(app: FastifyInstance): Promise
         if (!request.rawBody && request.body) {
             (request as any).rawBody = request.body;
         }
-        
+
         return stripeWebhookController(request, reply);
     });
 }
