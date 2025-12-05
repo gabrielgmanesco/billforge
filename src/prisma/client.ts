@@ -6,7 +6,7 @@ import { env } from '../core/env/env.js';
 const pool = new pg.Pool({ connectionString: env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
 
-pool.on('error', (err) => {
+pool.on('error', (err: Error) => {
   console.error('Unexpected error on idle PostgreSQL client', err);
   process.exit(-1);
 });
