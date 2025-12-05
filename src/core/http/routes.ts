@@ -6,10 +6,29 @@ import { registerUsersRoutes } from '../../modules/users/users.routes.js';
 import { registerBillingRoutes } from '../../modules/payments/billing.routes.js';
 import { registerStripeWebhookRoutes } from '../../modules/webhooks/stripe-webhook.routes.js';
 import { registerReportsRoutes } from '../../modules/reports/reports.routes.js';
+import { prisma } from '../../prisma/client.js';
+import { stripe } from '../../config/stripe.js';
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
-  app.get('/health', async () => {
-    return { status: 'ok' };
+  app.get('/health', async (request, reply) => {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      
+      return reply.status(200).send({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        database: 'connected',
+        stripe: stripe ? 'configured' : 'not configured',
+      });
+    } catch (error) {
+      request.log.error(error, 'Health check failed');
+      return reply.status(503).send({
+        status: 'error',
+        timestamp: new Date().toISOString(),
+        database: 'disconnected',
+      });
+    }
   });
 
   app.register(registerAuthRoutes, {

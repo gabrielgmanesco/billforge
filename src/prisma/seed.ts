@@ -2,7 +2,6 @@ import { BillingInterval } from '@prisma/client';
 import { prisma } from './client.js';
 
 async function main() {
-  // stripeProductId e stripePriceId serão preenchidos após criar os produtos no Stripe
   const plans = [
     {
       code: 'free',
@@ -17,7 +16,7 @@ async function main() {
       code: 'pro',
       name: 'Pro',
       description: 'Pro plan for growing teams',
-      priceCents: 999, // $9.99
+      priceCents: 999,
       currency: 'USD',
       interval: BillingInterval.MONTH,
       isActive: true,
@@ -26,7 +25,7 @@ async function main() {
       code: 'premium',
       name: 'Premium',
       description: 'Premium plan with all features',
-      priceCents: 1999, // $19.99
+      priceCents: 1999,
       currency: 'USD',
       interval: BillingInterval.MONTH,
       isActive: true,

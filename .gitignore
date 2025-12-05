@@ -27,7 +27,6 @@ docker-compose.override.yml
 
 # Prisma
 prisma/*.db
-# migrations/ devem ser versionadas - NÃO ignorar
 
 # Coverage
 coverage/

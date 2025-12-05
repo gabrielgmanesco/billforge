@@ -39,7 +39,7 @@ model RefreshToken {
 
 model SubscriptionPlan {
   id              String           @id @default(cuid())
-  code            String           @unique // "free", "pro", "premium"
+  code            String           @unique
   name            String
   description     String?
   stripeProductId String?          @unique
@@ -78,6 +78,7 @@ model Subscription {
 
   @@index([userId, status])
   @@index([stripeSubscriptionId])
+  @@index([userId, status, cancelAtPeriodEnd])
 }
 
 model Invoice {

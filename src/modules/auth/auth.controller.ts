@@ -27,12 +27,19 @@ export async function registerController(request: FastifyRequest, reply: Fastify
 
   const result = await authService.register(body);
 
+  const ipAddress = 
+    (request.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+    (request.headers['x-real-ip'] as string) ||
+    request.ip;
+
+  const userAgent = request.headers['user-agent'] || 'Unknown';
+
   await createAuditLog({
     userId: result.user.id,
     action: 'auth.register',
     resource: 'user',
-    ipAddress: request.ip,
-    userAgent: request.headers['user-agent'] ?? null,
+    ipAddress,
+    userAgent,
     metadata: {
       email: result.user.email,
     },

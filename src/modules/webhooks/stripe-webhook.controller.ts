@@ -44,8 +44,7 @@ async function upsertSubscriptionFromStripeSubscription(
   const planCode = resolvePlanCodeFromPriceId(priceId);
 
   if (!planCode) {
-    console.warn('[StripeWebhook] Could not resolve plan code from priceId', priceId);
-    return;
+    return null;
   }
 
   const plan = await prisma.subscriptionPlan.findUnique({
@@ -53,8 +52,7 @@ async function upsertSubscriptionFromStripeSubscription(
   });
 
   if (!plan) {
-    console.warn('[StripeWebhook] Plan not found for code', planCode);
-    return;
+    return null;
   }
 
   const sub = stripeSub as any;
@@ -93,7 +91,6 @@ async function upsertInvoiceFromStripeInvoice(stripeInvoice: Stripe.Invoice): Pr
     : stripeInvoice.customer?.id;
 
   if (!customerId) {
-    console.warn('[StripeWebhook] Invoice without customer');
     return null;
   }
 
@@ -102,7 +99,6 @@ async function upsertInvoiceFromStripeInvoice(stripeInvoice: Stripe.Invoice): Pr
   });
 
   if (!user) {
-    console.warn('[StripeWebhook] User not found for customer', customerId);
     return null;
   }
 
@@ -239,7 +235,7 @@ export async function stripeWebhookController(request: FastifyRequest, reply: Fa
         });
 
         if (!user) {
-          console.warn('[StripeWebhook] User not found for subscription customer', customerId);
+          request.log.warn({ customerId }, 'User not found for subscription customer');
           break;
         }
 

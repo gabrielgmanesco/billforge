@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
 import fastifyRawBody from 'fastify-raw-body';
+import rateLimit from '@fastify/rate-limit';
 
 import { env } from './core/env/env.js';
 import { registerRoutes } from './core/http/routes.js';
@@ -11,6 +12,12 @@ export function buildApp() {
     logger: {
       level: env.NODE_ENV === 'development' ? 'debug' : 'info'
     }
+  });
+
+  app.register(rateLimit, {
+    max: 100,
+    timeWindow: '15 minutes',
+    cache: 10000,
   });
 
   app.register(cookie, {

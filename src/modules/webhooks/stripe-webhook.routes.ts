@@ -7,7 +7,6 @@ export async function registerStripeWebhookRoutes(app: FastifyInstance): Promise
     });
 
     app.post('/webhooks/stripe', async (request, reply) => {
-        // Ensure rawBody is available
         if (!request.rawBody && request.body) {
             (request as any).rawBody = request.body;
         }
